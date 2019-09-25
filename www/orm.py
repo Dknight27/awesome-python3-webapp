@@ -90,7 +90,7 @@ class Model(dict, metaclass=ModelMetaclass):
         rs=await select('%s where `%s`=?'%(cls.__select__, cls.__primary_key__),[pk],1)
         if len(rs)==0:
             return None
-        return cls(**rs[0])#返回了一个包含列表的列表?
+        return cls(**rs[0])
     
     @classmethod
     async def findAll(cls,where=None,args=None,**kw):
@@ -116,8 +116,25 @@ class Model(dict, metaclass=ModelMetaclass):
             else:
                 raise ValueError('Invalid limit value: %s' % str(limit))
         rs=await select(' '.join(sql),args)
-        return [cls(**r) for r in rs]
+        return [cls(**r) for r in rs]#这si个sa吗
+        # cls是type的实例，self是cls的实例，！！确定：这里是利用Model构造了一个新的实例！！
+        # cursor.fetchmany(size) returns a list of tuples，rs是一个元组的列表，那怎么根据元组构造Model?
+        # 似乎rs应该是列名到属性的映射?
+        # --问题暂留--
     
+    #适用于select count(*)
+    @classmethod
+    def findNumebr(cls,selectField,where=None,args=None):
+        sql=['select %s _num_ from %s'%(selectField,cls.__table__)]#这里的_num_可能是对返回列的重命名
+        if where:
+            sql.append('where')
+            sql.append(where)
+        rs=await select(' '.join(sql),args,1)
+        if len(rs)==0:
+            return None
+        return rs[0]['_num_']    
+        #流下了垃圾的泪水，所以rs到底是个什么对象
+        
     async def save(self):
         args=list(map(self.getValueOrDefault,self.__fields__))#按照fields顺序的list参数?
         args.append(self.getValueOrDefault(self.__primary_key__))
@@ -150,7 +167,7 @@ class Field(object):
 
 class StringField(Field):
     def __init__(self,name=None,primary_key=False,default=None,ddl='varchar(100)'):#为什么没有用到colunm_type呢？
-        super.__init__(name,ddl,primary_key,default)
+        super.__init__(name,ddl,primary_key,default)#上面的好好看代码好叭，这不是把ddl赋值给column_type了吗
 
 class BooleanField(Field):
 
@@ -199,7 +216,7 @@ class ModelMetaclass(type):
                         raise RuntimeError('Duplicate primary key for field: %s' % k)
                     primaryKey=k
                 else:
-                    fields.append(k)#不是很懂这有什么用
+                    fields.append(k)#除了主键之外的域
         if not primaryKey:
             raise RuntimeError('Primary key not found.')
         for k in mappings.keys():
