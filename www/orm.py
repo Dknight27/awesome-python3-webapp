@@ -76,7 +76,7 @@ class Model(dict, metaclass=ModelMetaclass):
 
     def getValueOrDefault(self,key):
         value=getattr(self,key,None)
-        if  value==None:
+        if  value is None:
             field=self.__mappings__[key]
             if field.default is None:
                 value = field.default() if callable(field.default) else field.default
@@ -92,12 +92,51 @@ class Model(dict, metaclass=ModelMetaclass):
             return None
         return cls(**rs[0])#返回了一个包含列表的列表?
     
+    @classmethod
+    async def findAll(cls,where=None,args=None,**kw):
+        sql=[cls.__select__]
+        if where:
+            sql.append('where')
+            sql.append(where)
+        if args is None:
+            args=[]
+        orderBy=kw.get('orderBy',None)
+        if orderBy:
+            sql.append('order by')
+            sql.append(orderBy)
+        limit=kw.get('limit',None)
+        if limit is not None:
+            sql.append('limit')
+            if isinstance(limit,int):
+                sql.append('?')
+                args.append(limit)
+            elif isinstance(limit,tuple) and len(limit)==2:
+                sql.append('?, ?')
+                args.extend(limit)
+            else:
+                raise ValueError('Invalid limit value: %s' % str(limit))
+        rs=await select(' '.join(sql),args)
+        return [cls(**r) for r in rs]
+    
     async def save(self):
         args=list(map(self.getValueOrDefault,self.__fields__))#按照fields顺序的list参数?
         args.append(self.getValueOrDefault(self.__primary_key__))
         rows=await execute(self.__insert__,args)
         if rows != 1:
             logging.warn('failed to insert record: affected rows %s'%rows)
+
+    async def update(self):
+        args=list(map(self.getValueOrDefault,self.__fields__))
+        args.append(self.getValueOrDefault(self.__primary_key__))
+        rows=await execute(self.__update__,args)
+        if rows != 1:
+            logging.warn('failed to update by primary key: affected rows %s'%rows)
+
+    async def remove(self):
+        args=[self.getValue(self.__primary_key__)]#为什么要用list对象
+        rows=await execute(self.__delete__,args)
+        if rows != 1:
+            logging.warn('failed to remove by primary key: affected rows: %s' % rows)
 
 class Field(object):
     def __init__(self, name, column_type, primary_key, default):
@@ -173,7 +212,9 @@ class ModelMetaclass(type):
         #构造 默认的 select,update,insert,delete函数
         #整段垮掉，好多看不懂什么意思，流下了没有好好学习数据库的泪水
         attrs['__select__']='select `%s`, %s from %s'%(primaryKey, ','.join(escaped_fields), tableName)
+        #这里的insert语句可以确保前后参数的顺序是按照fields+primary_key的顺序来填充的
         attrs['__insert__']='insert into `%s` (%s,`%s`) values(%s)'%(tableName, ','.join(escaped_fields),primaryKey, create_args_string(len(escaped_fields)+1))
+        #这个update函数里的lambda函数是不是只是想让我们了解一下，感觉跟上面的没区别啊    续：不，有区别，把%s替换成了%s=?
         attrs['__update__']='update `%s` set %s where `%s`=?'%(tableName,','.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
         attrs['__delete__']='delete from `%s` where `%s`=?'%(tableName,primaryKey)
         return type.__new__(cls,name,bases,attrs)
