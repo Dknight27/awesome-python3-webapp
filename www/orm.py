@@ -10,14 +10,14 @@ def log(sql,args=()):
 #创建线程池
 async def create_pool(loop,**kw):#这里所需的参数都写在config文件里，方便后期修改（内心os：好强啊！）
     logging.info('create database connection...')
-    global __pool
+    global __pool#在这里创建了全局变量__pool，之后需要连接数据库的操作全都从__pool获取线程
     __pool=await aiomysql.create_pool(
-        host=kw.get('host','http://172.27.0.3'),
+        host=kw.get('host','localhost'),
         port=kw.get('port',3306),
         user=kw['user'],
         password=kw['password'],
         db=kw['db'],
-        charset=kw.get('charset','utf-8'),
+        charset=kw.get('charset','utf8'),
         autocommit=kw.get('autocommit',True),
         maxsize=kw.get('maxsize',10),
         minsize=kw.get('minsize',1),
@@ -58,6 +58,87 @@ async def execute(sql,args,autocommit=True):
             raise
         return affected#返回受影响的行数
 
+class Field(object):
+    def __init__(self, name, column_type, primary_key, default):
+        self.name = name
+        self.column_type = column_type
+        self.primary_key = primary_key
+        self.default = default
+
+    def __str__(self):
+        return '<%s,%s:%s>'%(self.__class__.__name__,self.column_type,self.name)
+
+class StringField(Field):
+    def __init__(self,name=None,primary_key=False,default=None,ddl='varchar(100)'):#为什么没有用到colunm_type呢？
+        super().__init__(name,ddl,primary_key,default)#上面的好好看代码好叭，这不是把ddl赋值给column_type了吗
+
+class BooleanField(Field):
+
+    def __init__(self, name=None, default=False):
+        super().__init__(name, 'boolean', False, default)
+
+class IntegerField(Field):
+
+    def __init__(self, name=None, primary_key=False, default=0):
+        super().__init__(name, 'bigint', primary_key, default)
+
+class FloatField(Field):
+
+    def __init__(self, name=None, primary_key=False, default=0.0):
+        super().__init__(name, 'real', primary_key, default)
+
+class TextField(Field):
+
+    def __init__(self, name=None, default=None):
+        super().__init__(name, 'text', False, default)
+
+def create_args_string(num):
+    L=[]
+    for num in range(num):
+        L.append('?')
+    return ','.join(L)
+
+class ModelMetaclass(type):
+    def __new__(cls,name,bases,attrs):
+        #排除Model类,但是为什么    续：只是为了不更改Model类
+        if name == 'Model':
+            return type.__new__(cls,name,bases,attrs)
+        #table name
+        tableName=attrs.get('__table__',None) or name #默认表名和类名是一样的
+        logging.info('found model: %s(table: %s)'%(name,tableName))
+        #获取所有的Filed和主键
+        mappings=dict()
+        fields=[]
+        primaryKey=None
+        for k,v in attrs.items():
+            if isinstance(v,Field):
+                logging.info('found mapping: %s ==> %s'%(k,v))
+                mappings[k]=v
+                if v.primary_key:
+                    if primaryKey:
+                        raise RuntimeError('Duplicate primary key for field: %s' % k)
+                    primaryKey=k
+                else:
+                    fields.append(k)#除了主键之外的域
+        if primaryKey is None:
+            raise RuntimeError('Primary key not found.')
+        for k in mappings.keys():
+            attrs.pop(k)#为什么要pop掉这些属性? 目前已知：对于不存在的属性才会调用__getattr__() 续：可能是方便管理吧，跟getattr应该没关系
+        escaped_fields=list(map(lambda f: '`%s`'%f,fields))#有什么用？
+        attrs['__mappings__']=mappings
+        attrs['__table__']=tableName
+        attrs['__primary_key__']=primaryKey
+        attrs['__fields__']=fields
+        #构造 默认的 select,update,insert,delete函数
+        #整段垮掉，好多看不懂什么意思，流下了没有好好学习数据库的泪水
+        attrs['__select__']='select `%s`, %s from %s'%(primaryKey, ','.join(escaped_fields), tableName)
+        #这里的insert语句可以确保前后参数的顺序是按照fields+primary_key的顺序来填充的
+        attrs['__insert__']='insert into `%s` (%s,`%s`) values(%s)'%(tableName, ','.join(escaped_fields),primaryKey, create_args_string(len(escaped_fields)+1))
+        #这个update函数里的lambda函数是不是只是想让我们了解一下，感觉跟上面的没区别啊    续：不，有区别，把%s替换成了%s=?
+        attrs['__update__']='update `%s` set %s where `%s`=?'%(tableName,','.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
+        attrs['__delete__']='delete from `%s` where `%s`=?'%(tableName,primaryKey)
+        return type.__new__(cls,name,bases,attrs)
+
 class Model(dict, metaclass=ModelMetaclass):
     def __init__(self,**kw):
         super(Model,self).__init__(**kw)
@@ -78,8 +159,9 @@ class Model(dict, metaclass=ModelMetaclass):
         value=getattr(self,key,None)
         if  value is None:
             field=self.__mappings__[key]
-            if field.default is None:
+            if field.default is not None:#这里的default是Field里面定义的缺省变量
                 value = field.default() if callable(field.default) else field.default
+                #检测default是否可调用，比如create_at中default=time.time，就是可调用的
                 logging.debug('using default value for %s: %s' % (key, str(value)))
                 setattr(self,key,value)
         return value
@@ -124,7 +206,7 @@ class Model(dict, metaclass=ModelMetaclass):
     
     #适用于select count(*)
     @classmethod
-    def findNumebr(cls,selectField,where=None,args=None):
+    async def findNumebr(cls,selectField,where=None,args=None):
         sql=['select %s _num_ from %s'%(selectField,cls.__table__)]#这里的_num_可能是对返回列的重命名
         if where:
             sql.append('where')
@@ -155,83 +237,3 @@ class Model(dict, metaclass=ModelMetaclass):
         if rows != 1:
             logging.warn('failed to remove by primary key: affected rows: %s' % rows)
 
-class Field(object):
-    def __init__(self, name, column_type, primary_key, default):
-        self.name = name
-        self.column_type = column_type
-        self.primary_key = primary_key
-        self.default = default
-
-    def __str__(self):
-        return '<%s,%s:%s>'%(self.__class__.__name__,self.column_type,self.name)
-
-class StringField(Field):
-    def __init__(self,name=None,primary_key=False,default=None,ddl='varchar(100)'):#为什么没有用到colunm_type呢？
-        super.__init__(name,ddl,primary_key,default)#上面的好好看代码好叭，这不是把ddl赋值给column_type了吗
-
-class BooleanField(Field):
-
-    def __init__(self, name=None, default=False):
-        super().__init__(name, 'boolean', False, default)
-
-class IntegerField(Field):
-
-    def __init__(self, name=None, primary_key=False, default=0):
-        super().__init__(name, 'bigint', primary_key, default)
-
-class FloatField(Field):
-
-    def __init__(self, name=None, primary_key=False, default=0.0):
-        super().__init__(name, 'real', primary_key, default)
-
-class TextField(Field):
-
-    def __init__(self, name=None, default=None):
-        super().__init__(name, 'text', False, default)
-
-def create_args_string(num):
-    L=[]
-    for num in range(num):
-        L.append('?')
-    return ','.join(L)
-
-class ModelMetaclass(type):
-    def __new__(cls,name,bases,attrs):
-        #排除Model类,但是为什么    续：只是为了不更改Model类
-        if __name__ == 'Model':
-            return type.__new__(cls,name,bases,attrs)
-        #table name
-        tableName=attrs.get('__table__',None) or name #默认表名和类名是一样的
-        logging.info('found model: %s(table: %s)'%(name,tableName))
-        #获取所有的Filed和主键
-        mappings=dict()
-        fields=[]
-        primaryKey=None
-        for k,v in attrs.items():
-            if isinstance(v,Field):
-                logging.info('found mapping: %s ==> %s'%(k,v))
-                mappings[k]=v
-                if v.primary_key:
-                    if primaryKey:
-                        raise RuntimeError('Duplicate primary key for field: %s' % k)
-                    primaryKey=k
-                else:
-                    fields.append(k)#除了主键之外的域
-        if not primaryKey:
-            raise RuntimeError('Primary key not found.')
-        for k in mappings.keys():
-            attrs.pop(k)#为什么要pop掉这些属性? 目前已知：对于不存在的属性才会调用__getattr__()
-        escaped_fields=list(map(lambda f: '`%s`'%f,fields))#有什么用？
-        attrs['__mappings__']=mappings
-        attrs['__table__']=tableName
-        attrs['__primary_key__']=primaryKey
-        attrs['__fields__']=fields
-        #构造 默认的 select,update,insert,delete函数
-        #整段垮掉，好多看不懂什么意思，流下了没有好好学习数据库的泪水
-        attrs['__select__']='select `%s`, %s from %s'%(primaryKey, ','.join(escaped_fields), tableName)
-        #这里的insert语句可以确保前后参数的顺序是按照fields+primary_key的顺序来填充的
-        attrs['__insert__']='insert into `%s` (%s,`%s`) values(%s)'%(tableName, ','.join(escaped_fields),primaryKey, create_args_string(len(escaped_fields)+1))
-        #这个update函数里的lambda函数是不是只是想让我们了解一下，感觉跟上面的没区别啊    续：不，有区别，把%s替换成了%s=?
-        attrs['__update__']='update `%s` set %s where `%s`=?'%(tableName,','.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
-        attrs['__delete__']='delete from `%s` where `%s`=?'%(tableName,primaryKey)
-        return type.__new__(cls,name,bases,attrs)
