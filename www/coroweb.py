@@ -9,22 +9,22 @@ from apis import APIError
 #get方法，是个decorator
 def get(path):
     def decorator(func):
+        func.__method__='GET'
+        func.__route__=path#这里的两个属性在后面的RequestHandler函数中有使用到
         @functools.wraps(func)#保证函数名仍为get
         def wrapper(*args,**kw):
             return func(*args,**kw)
-        func.__method__='GET'
-        func.__route__=path#这里的两个属性在后面的RequestHandler函数中有使用到
         return wrapper
     return decorator       
 
 #post方法，也是个decorator
 def post(path):
     def decorator(func):
+        func.__method__='POST'
+        func.__route__=path
         @functools.wraps(func)
         def wrapper(*args,**kw):
             return func(*args,*kw)
-        func.__method__='POST'
-        func.__route__=path
         return wrapper
     return decorator
 
@@ -32,7 +32,7 @@ def post(path):
 def get_required_kw_args(fn):
     args=[]
     params=inspect.signature(fn).parameters
-    for name,param in params:
+    for name,param in params.items():
         if param.kind==inspect.Parameter.KEYWORD_ONLY and param.kind==inspect.Parameter.empty:
             args.append(name)
     return tuple(args)#为什么返回元组对象,保证不可更改?
@@ -49,7 +49,7 @@ def get_named_kw_args(fn):
 #判断是否具有强制性参数（前面有*args参数）
 def has_named_kw_args(fn):
     params=inspect.signature(fn).parameters
-    for name,param in params.items:
+    for name,param in params.items():
         if param.kind==inspect.Parameter.KEYWORD_ONLY:
             return True
     # return False 为什么没有这一句
@@ -57,7 +57,7 @@ def has_named_kw_args(fn):
 #判断是否具有VAR_KEYWORD参数（**kw参数）
 def has_var_kw_args(fn):
     params=inspect.signature(fn).parameters
-    for name,param in params.items:
+    for name,param in params.items():
         if param.kind==inspect.Parameter.VAR_KEYWORD:
             return True
 
