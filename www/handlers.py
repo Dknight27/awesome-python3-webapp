@@ -25,7 +25,7 @@ async def index(request):
 
 @get('/api/users')
 async def api_get_users(*, page='1'):
-    users=yield from User.findAll(orderBy='created_at')
+    users=await User.findAll(orderBy='created_at')
     for user in users:
         user.passwd='******'
     return dict(users=users)
