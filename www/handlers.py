@@ -20,5 +20,5 @@ async def index(request):
     ]
     return {
         '__template__': 'blogs.html',
-        'users': blogs
+        'blogs': blogs
     }
