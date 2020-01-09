@@ -22,3 +22,10 @@ async def index(request):
         '__template__': 'blogs.html',
         'blogs': blogs
     }
+
+@get('/api/users')
+async def api_get_users(*, page='1'):
+    users=yield from User.findAll(orderBy='created_at')
+    for user in users:
+        user.passwd='******'
+    return dict(users=users)

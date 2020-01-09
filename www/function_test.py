@@ -1,10 +1,4 @@
-def outer(func):
-    print(100)
-    def inner():
-        
-        return func()
-    return inner
+def get(a,b,*,c):
+    print(a,b,c)
 
-@outer
-def new():
-    pass
+get(5,6,c=9)

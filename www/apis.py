@@ -6,8 +6,11 @@ __author__ = 'Michael Liao'
 '''
 JSON API definition.
 '''
+import re, time, json, logging, hashlib, base64, asyncio
 
-import json, logging, inspect, functools
+from coroweb import get, post
+
+from models import User, Comment, Blog, next_id
 
 class APIError(Exception):
     '''
@@ -39,3 +42,4 @@ class APIPermissionError(APIError):
     '''
     def __init__(self, message=''):
         super(APIPermissionError, self).__init__('permission:forbidden', 'permission', message)
+
