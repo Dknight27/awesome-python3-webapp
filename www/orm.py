@@ -203,7 +203,7 @@ class Model(dict, metaclass=ModelMetaclass):
         # cursor.fetchmany(size) returns a list of tuples，rs是一个元组的列表，那怎么根据元组构造Model?
         # 似乎rs应该是列名到属性的映射?
         # --问题暂留--
-        # 续：rs依然是一个生成器，因此可以使用for r in rs的格式
+        # 续：rs依然是一个生成器，因此可以使用for r in rs的格式, 经测试，r是dict
     
     #适用于select count(*)
     @classmethod

@@ -43,6 +43,7 @@ async def cookie2user(cookie_str):
             logging.info('invalid sha1')
             return None
         user.passwd='******'
+        return user
     except Exception as e:
         logging.exception(e)
         return None
@@ -67,13 +68,13 @@ def register():
         '__template__':'regester.html'
     }
 
-@get('/login')
+@get('/signin')
 def login():
     return {
-        '__template__':'login.html'
+        '__template__':'signin.html'
     }
 
-@post('api/authenticate')
+@post('/api/authenticate')
 def authenticate(*,email,passwd):
     if not email:
         raise APIValueError('email','Invalid email.')
