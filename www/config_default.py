@@ -9,6 +9,6 @@ configs = {
         'database': 'awesome'
     },
     'session': {
-        'secret': 'AwEsOmE'#这个有什么用
+        'secret': 'Awesome'#这个有什么用 续：用于cookie的生成
     }
 }

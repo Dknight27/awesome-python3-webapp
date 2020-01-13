@@ -10,7 +10,9 @@ function validateEmail(email) {
     var re = /^[a-z0-9\.\-\_]+\@[a-z0-9\-\_]+(\.[a-z0-9\-\_]+){1,4}$/;
     return re.test(email.toLowerCase());
 }
-
+function say(){
+    alert("Ahhhhhhhhhhhhhhhhh")
+}
 $(function () {
     var vm = new Vue({
         el: '#vm',
@@ -21,6 +23,9 @@ $(function () {
             password2: ''
         },
         methods: {
+            say: function(){
+                alert('Ahhhhhhhhhhhh')
+            },
             submit: function (event) {
                 event.preventDefault();
                 var $form = $('#vm');
@@ -61,6 +66,7 @@ $(function () {
 
     <div class="uk-width-2-3">
         <h1>欢迎注册！</h1>
+        <button v-on:click="say">你猜我要说啥？</button>
         <form id="vm" v-on:submit="submit" class="uk-form uk-form-stacked">
             <div class="uk-alert uk-alert-danger uk-hidden"></div>
             <div class="uk-form-row">

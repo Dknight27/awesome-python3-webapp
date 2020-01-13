@@ -33,7 +33,7 @@ async def cookie2user(cookie_str):
         if len(L)!=3:#cookie格式不对
             return None
         uid,expires,sha1=L
-        if expires<time.time():#cookie过期
+        if int(expires)<time.time():#cookie过期
             return None
         user=await User.find(uid)
         if user is None:
@@ -50,7 +50,7 @@ async def cookie2user(cookie_str):
         
 @get('/')
 async def index(request):
-    users = await User.findAll()
+    # users = await User.findAll()
     summary='In 2019, I have learned many things. I missed it.'
     blogs = [
         Blog(id='1', name='Test Blog', summary=summary, created_at=time.time()-120),
@@ -65,7 +65,7 @@ async def index(request):
 @get('/register')
 def register():
     return {
-        '__template__':'regester.html'
+        '__template__':'register.html'
     }
 
 @get('/signin')
@@ -75,12 +75,12 @@ def login():
     }
 
 @post('/api/authenticate')
-def authenticate(*,email,passwd):
+async def authenticate(*,email,passwd):
     if not email:
         raise APIValueError('email','Invalid email.')
     if not passwd:
         raise APIValueError('passwd','Invalid passwd')
-    users=User.findAll('email=? ',[email])
+    users=await User.findAll('email=? ',[email])
     if len(users)==0:
         raise APIValueError('email','Email not exist.')
     user=users[0]#有可能users含有多个值吗?
@@ -131,7 +131,7 @@ async def api_register_user(*,email,name,passwd):
         raise APIError('register:failed','email','Email is already in use.')
     uid=next_id()
     sha1_passwd='%s:%s'%(uid,passwd)
-    user = User(id=uid, name=name.strip(), email=email, passwd=hashlib.sha1(sha1_passwd.encode('utf-8')).hexdigest(), image='about:blank' % hashlib.md5(email.encode('utf-8')).hexdigest())#避免了明文存储密码
+    user = User(id=uid, name=name.strip(), email=email, passwd=hashlib.sha1(sha1_passwd.encode('utf-8')).hexdigest(), image='http://www.gravatar.com/avatar/%s?d=mm&s=120' % hashlib.md5(email.encode('utf-8')).hexdigest())#避免了明文存储密码
     await user.save()
     r=web.Response()
     r.set_cookie(COOKIE_NAME, user2cookie(user, 86400), max_age=86400, httponly=True)
