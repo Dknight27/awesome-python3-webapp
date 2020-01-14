@@ -11,7 +11,7 @@ def get(path):
     def decorator(func):
         func.__method__='GET'
         func.__route__=path#这里的两个属性在后面的RequestHandler函数中有使用到
-        @functools.wraps(func)#保证函数名仍为get
+        @functools.wraps(func)#保证函数名仍为func.__name__
         def wrapper(*args,**kw):
             return func(*args,**kw)
         return wrapper

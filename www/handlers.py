@@ -10,7 +10,7 @@ from aiohttp import web
 import markdown2
 
 from coroweb import get, post
-from apis import APIValueError, APIResourceNotFoundError, APIError, APIPermissionError
+from apis import APIValueError, APIResourceNotFoundError, APIError, APIPermissionError, Page
 
 from models import User, Comment, Blog, next_id
 from config import configs
@@ -141,7 +141,14 @@ def signout(request):
     logging.info('user signed out.')
     return r
 
-@get('/manage/blogs/create')
+@get('/manage/blogs')
+def manage_blogs(*,page='1'):
+    return {
+        '__template__':'manage_blogs.html',
+        'page_index':get_page_index(page)
+    }
+
+@get('/manage/blogs/create')#app.py中限制了manage开头的访问必须要有管理员权限
 def manage_create_blog():
     return {
         '__template__':'manage_blog_edit.html',
@@ -180,6 +187,16 @@ async def api_register_user(*,email,name,passwd):
     r.content_type = 'application/json'
     r.body = json.dumps(user, ensure_ascii=False).encode('utf-8')
     return r
+
+@get('/api/blogs')
+async def api_blogs(*,page='1'):#为什么page用str呢
+    page_index=get_page_index(page)
+    num=await Blog.findNumber('count(id)')
+    p=Page(num,page_index)
+    if num==0:
+        return dict(page=p,blogs=())#为什么空blog用空元组呢
+    blogs=await Blog.findAll(orderBy='created_at desc',limit=(p.offset,p.limit))
+    return dict(page=p,blog=blogs)
 
 @get('/api/blogs/{id}')
 async def api_get_blog(id):#这个函数可能是直接返回某博客的结构化json数据，具体处理可能在response_factory
