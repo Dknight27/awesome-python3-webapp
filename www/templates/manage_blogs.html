@@ -98,7 +98,13 @@ $(function() {
             </tbody>
         </table>
 
-        <pagination></pagination>
+        <pagination
+         v-bind:page_index="page.page_index"
+         v-bind:has_previous="page.has_previous"
+         v-bind:has_next="page.has_next"
+        ></pagination
+        >
     </div>
+     
 
 {% endblock %}

@@ -350,6 +350,7 @@ function postJSON(url, data, callback) {
 // extends Vue:
 
 if (typeof(Vue)!=='undefined') {
+    console.log('Extends Vue...');
     Vue.filter('datetime', function (value) {
         var d = value;
         if (typeof(value)==='number') {
@@ -358,6 +359,7 @@ if (typeof(Vue)!=='undefined') {
         return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate() + ' ' + d.getHours() + ':' + d.getMinutes();
     });
     Vue.component('pagination', {
+        props:['page_index','has_previous','has_next'],
         template: '<ul class="uk-pagination">' +
                 '<li v-if="! has_previous" class="uk-disabled"><span><i class="uk-icon-angle-double-left"></i></span></li>' +
                 '<li v-if="has_previous"><a v-on:click="\'gotoPage(\' + (page_index-1) + \')\'" href="#0"><i class="uk-icon-angle-double-left"></i></a></li>' +
