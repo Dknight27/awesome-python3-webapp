@@ -196,7 +196,9 @@ async def api_blogs(*,page='1'):#为什么page用str呢
     if num==0:
         return dict(page=p,blogs=())#为什么空blog用空元组呢
     blogs=await Blog.findAll(orderBy='created_at desc',limit=(p.offset,p.limit))
-    return dict(page=p,blog=blogs)
+    # for blog in blogs:
+    #     logging.info(blog)
+    return dict(page=p,blogs=blogs)
 
 @get('/api/blogs/{id}')
 async def api_get_blog(id):#这个函数可能是直接返回某博客的结构化json数据，具体处理可能在response_factory
